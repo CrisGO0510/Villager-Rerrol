@@ -36,6 +36,9 @@ public class VillagerRerollClient implements ClientModInitializer {
     private static int timer = 0;
     private static int timeoutGui = 0;
     
+    // Nueva variable para controlar el estado del minado y evitar reinicios
+    private boolean isMining = false;
+    
     private VillagerEntity targetVillager;
     private BlockPos workstationPos;
 
@@ -51,12 +54,8 @@ public class VillagerRerollClient implements ClientModInitializer {
         // Toggle Keybind
         while (Keybinds.TOGGLE.wasPressed()) {
             enabled = !enabled;
-            currentState = State.IDLE;
-            targetVillager = null;
-            workstationPos = null;
+            resetState(client); // Reset completo al cambiar
             client.player.sendMessage(Text.literal("§6Villager Reroll: " + (enabled ? "§aON" : "§cOFF")), true);
-            // Si cancelamos, aseguramos dejar de romper
-            client.interactionManager.cancelBlockBreaking();
         }
 
         if (!enabled) return;
@@ -83,6 +82,7 @@ public class VillagerRerollClient implements ClientModInitializer {
                 if (workstationPos != null) {
                     if (isLibrarian(targetVillager)) {
                         currentState = State.BREAK_BLOCK;
+                        isMining = false; // Reset minado
                     } else {
                         currentState = State.PLACE_BLOCK;
                     }
@@ -93,34 +93,36 @@ public class VillagerRerollClient implements ClientModInitializer {
                 break;
 
             case BREAK_BLOCK:
-                // 1. Cerrar GUI si estorba
-                if (client.currentScreen != null) {
-                    client.player.closeHandledScreen();
-                }
-
-                // 2. Verificar si el bloque ya se rompió (es Aire)
+                // 1. Verificar si el bloque ya no existe (es aire)
                 if (client.world.getBlockState(workstationPos).isAir()) {
-                    // Ya se rompió, paramos de minar y avanzamos
                     client.interactionManager.cancelBlockBreaking();
+                    isMining = false;
                     timer = 5; 
                     currentState = State.WAIT_FOR_JOB_LOSS;
                     return;
                 }
 
-                // 3. SURVIVAL MODE: Hay que mantener la mirada y el "click"
-                lookAtBlock(client, workstationPos);
-                
-                // updateBlockBreakingProgress simula mantener el click izquierdo
-                // Si devuelve true, es que se rompió en este tick.
-                boolean broken = client.interactionManager.updateBlockBreakingProgress(workstationPos, Direction.UP);
-                client.player.swingHand(Hand.MAIN_HAND);
-
-                if (broken) {
-                    timer = 5;
-                    currentState = State.WAIT_FOR_JOB_LOSS;
+                // 2. Cerrar GUI si está abierta para que no interrumpa
+                if (client.currentScreen != null) {
+                    client.player.closeHandledScreen();
                 }
-                // Si no se rompió (false), el estado NO CAMBIA. 
-                // Volverá a entrar aquí en el siguiente tick para seguir minando.
+
+                // 3. Apuntar al bloque (CRUCIAL para que el server acepte el golpe)
+                lookAtBlock(client, workstationPos);
+
+                // 4. Lógica de Minado Robusta
+                if (!isMining) {
+                    // Tick 1: Empezar a minar (Click inicial)
+                    client.interactionManager.attackBlock(workstationPos, Direction.UP);
+                    client.player.swingHand(Hand.MAIN_HAND);
+                    isMining = true;
+                } else {
+                    // Tick 2+: Continuar minando (Mantener click)
+                    client.interactionManager.updateBlockBreakingProgress(workstationPos, Direction.UP);
+                    client.player.swingHand(Hand.MAIN_HAND);
+                }
+                
+                // No usamos timer aquí. El estado cambia solo cuando el bloque es aire.
                 break;
 
             case WAIT_FOR_JOB_LOSS:
@@ -137,18 +139,17 @@ public class VillagerRerollClient implements ClientModInitializer {
                     return;
                 }
 
-                // Mirar para ponerlo bien
                 lookAtBlock(client, workstationPos);
 
                 BlockHitResult hitResult = new BlockHitResult(
                     workstationPos.toCenterPos(), Direction.UP, workstationPos, false
                 );
                 
-                // Interactuar una sola vez
+                // Interactuar una vez
                 client.interactionManager.interactBlock(client.player, Hand.MAIN_HAND, hitResult);
                 client.player.swingHand(Hand.MAIN_HAND);
                 
-                timer = 20; // Esperar a que el aldeano lo detecte
+                timer = 20; 
                 currentState = State.WAIT_FOR_JOB_GAIN;
                 break;
 
@@ -182,18 +183,18 @@ public class VillagerRerollClient implements ClientModInitializer {
                 if (client.player.currentScreenHandler instanceof MerchantScreenHandler merchantHandler) {
                     TradeOfferList offers = merchantHandler.getRecipes();
                     
-                    // Log
                     TradeUtils.printTrades(client, offers);
 
-                    // Check
                     if (TradeUtils.hasUnbreakingIII(offers)) {
                         client.player.sendMessage(Text.literal("§a✔ ¡Unbreaking III ENCONTRADO!"), false);
                         enabled = false;
-                        currentState = State.IDLE;
+                        resetState(client);
+                        // Dejamos GUI abierta
                     } else {
                         client.player.closeHandledScreen();
                         timer = 10; 
                         currentState = State.BREAK_BLOCK;
+                        isMining = false; // Reset minado para el siguiente ciclo
                     }
                 } else {
                     currentState = State.OPEN_GUI;
@@ -203,6 +204,16 @@ public class VillagerRerollClient implements ClientModInitializer {
     }
 
     // --- Helpers ---
+
+    private void resetState(MinecraftClient client) {
+        currentState = State.IDLE;
+        targetVillager = null;
+        workstationPos = null;
+        isMining = false;
+        if (client.interactionManager != null) {
+            client.interactionManager.cancelBlockBreaking();
+        }
+    }
 
     private void lookAtBlock(MinecraftClient client, BlockPos pos) {
         Vec3d playerPos = client.player.getEyePos();
