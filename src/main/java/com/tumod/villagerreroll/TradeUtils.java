@@ -1,32 +1,32 @@
 package com.tumod.villagerreroll;
 
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.Enchantments;
-import net.minecraft.item.EnchantedBookItem;
+import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.village.TradeOffer;
-import net.minecraft.village.TradeOfferList;
 
 public class TradeUtils {
 
-    public static boolean hasUnbreakingIII(TradeOfferList offers) {
-        for (TradeOffer offer : offers) {
+    public static boolean hasUnbreakingIII(VillagerEntity villager) {
+        for (TradeOffer offer : villager.getOffers()) {
             ItemStack sell = offer.getSellItem();
 
-            if (sell.getItem() instanceof EnchantedBookItem) {
-                var enchants = EnchantedBookItem.getEnchantmentNbt(sell);
+            ItemEnchantmentsComponent enchants =
+                sell.get(DataComponentTypes.STORED_ENCHANTMENTS);
 
-                for (var entry : enchants) {
-                    Enchantment ench = Enchantment.byRawId(entry.getInt("id"));
-                    int level = entry.getInt("lvl");
+            if (enchants == null) continue;
 
-                    if (ench == Enchantments.UNBREAKING && level == 3) {
-                        return true;
-                    }
+            for (RegistryEntry<Enchantment> enchantment : enchants.getEnchantments()) {
+                if (enchantment.matchesKey(Enchantments.UNBREAKING)
+                        && enchants.getLevel(enchantment) == 3) {
+                    return true;
                 }
             }
         }
         return false;
     }
 }
-
