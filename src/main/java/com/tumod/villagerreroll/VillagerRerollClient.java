@@ -36,7 +36,7 @@ public class VillagerRerollClient implements ClientModInitializer {
     private static int timer = 0;
     private static int timeoutGui = 0;
     
-    // Nueva variable para controlar el estado del minado y evitar reinicios
+    // Control de minado
     private boolean isMining = false;
     
     private VillagerEntity targetVillager;
@@ -54,7 +54,7 @@ public class VillagerRerollClient implements ClientModInitializer {
         // Toggle Keybind
         while (Keybinds.TOGGLE.wasPressed()) {
             enabled = !enabled;
-            resetState(client); // Reset completo al cambiar
+            resetState(client); 
             client.player.sendMessage(Text.literal("§6Villager Reroll: " + (enabled ? "§aON" : "§cOFF")), true);
         }
 
@@ -71,7 +71,7 @@ public class VillagerRerollClient implements ClientModInitializer {
                     
                     this.targetVillager = villager;
                     if (isLibrarian(villager) || isUnemployed(villager)) {
-                        client.player.sendMessage(Text.literal("§eIniciando ciclo..."), true);
+                        client.player.sendMessage(Text.literal("§eIniciando ciclo (Hacha Principal / Atril Secundaria)..."), true);
                         currentState = State.FIND_WORKSTATION;
                     }
                 }
@@ -82,7 +82,7 @@ public class VillagerRerollClient implements ClientModInitializer {
                 if (workstationPos != null) {
                     if (isLibrarian(targetVillager)) {
                         currentState = State.BREAK_BLOCK;
-                        isMining = false; // Reset minado
+                        isMining = false; 
                     } else {
                         currentState = State.PLACE_BLOCK;
                     }
@@ -93,7 +93,7 @@ public class VillagerRerollClient implements ClientModInitializer {
                 break;
 
             case BREAK_BLOCK:
-                // 1. Verificar si el bloque ya no existe (es aire)
+                // 1. Verificar si el bloque ya no existe
                 if (client.world.getBlockState(workstationPos).isAir()) {
                     client.interactionManager.cancelBlockBreaking();
                     isMining = false;
@@ -102,27 +102,21 @@ public class VillagerRerollClient implements ClientModInitializer {
                     return;
                 }
 
-                // 2. Cerrar GUI si está abierta para que no interrumpa
                 if (client.currentScreen != null) {
                     client.player.closeHandledScreen();
                 }
 
-                // 3. Apuntar al bloque (CRUCIAL para que el server acepte el golpe)
                 lookAtBlock(client, workstationPos);
 
-                // 4. Lógica de Minado Robusta
+                // El minado usa AUTOMÁTICAMENTE la mano principal (donde tienes el Hacha)
                 if (!isMining) {
-                    // Tick 1: Empezar a minar (Click inicial)
                     client.interactionManager.attackBlock(workstationPos, Direction.UP);
                     client.player.swingHand(Hand.MAIN_HAND);
                     isMining = true;
                 } else {
-                    // Tick 2+: Continuar minando (Mantener click)
                     client.interactionManager.updateBlockBreakingProgress(workstationPos, Direction.UP);
                     client.player.swingHand(Hand.MAIN_HAND);
                 }
-                
-                // No usamos timer aquí. El estado cambia solo cuando el bloque es aire.
                 break;
 
             case WAIT_FOR_JOB_LOSS:
@@ -133,8 +127,9 @@ public class VillagerRerollClient implements ClientModInitializer {
                 break;
 
             case PLACE_BLOCK:
-                if (!client.player.getMainHandStack().isOf(Items.LECTERN)) {
-                    client.player.sendMessage(Text.literal("§c¡Necesitas un Atril en la mano!"), false);
+                // CAMBIO: Verificar la Mano SECUNDARIA (OffHand)
+                if (!client.player.getOffHandStack().isOf(Items.LECTERN)) {
+                    client.player.sendMessage(Text.literal("§c¡Necesitas el Atril en la MANO SECUNDARIA!"), false);
                     enabled = false;
                     return;
                 }
@@ -145,9 +140,9 @@ public class VillagerRerollClient implements ClientModInitializer {
                     workstationPos.toCenterPos(), Direction.UP, workstationPos, false
                 );
                 
-                // Interactuar una vez
-                client.interactionManager.interactBlock(client.player, Hand.MAIN_HAND, hitResult);
-                client.player.swingHand(Hand.MAIN_HAND);
+                // CAMBIO: Interactuar con la Mano SECUNDARIA
+                client.interactionManager.interactBlock(client.player, Hand.OFF_HAND, hitResult);
+                client.player.swingHand(Hand.OFF_HAND);
                 
                 timer = 20; 
                 currentState = State.WAIT_FOR_JOB_GAIN;
@@ -162,6 +157,8 @@ public class VillagerRerollClient implements ClientModInitializer {
 
             case OPEN_GUI:
                 lookAtEntity(client, targetVillager);
+                // Interactuar con el aldeano usa la mano principal (que no debe ser bloque para no ponerlo)
+                // Como tenemos un Hacha, interactuará correctamente.
                 client.interactionManager.interactEntity(client.player, targetVillager, Hand.MAIN_HAND);
                 timeoutGui = 40; 
                 currentState = State.WAIT_FOR_GUI_OPEN;
@@ -189,12 +186,11 @@ public class VillagerRerollClient implements ClientModInitializer {
                         client.player.sendMessage(Text.literal("§a✔ ¡Unbreaking III ENCONTRADO!"), false);
                         enabled = false;
                         resetState(client);
-                        // Dejamos GUI abierta
                     } else {
                         client.player.closeHandledScreen();
                         timer = 10; 
                         currentState = State.BREAK_BLOCK;
-                        isMining = false; // Reset minado para el siguiente ciclo
+                        isMining = false; 
                     }
                 } else {
                     currentState = State.OPEN_GUI;
