@@ -1,13 +1,16 @@
 {
+  "schemaVersion": 1,
   "id": "villagerreroll",
-  "name": "Villager Reroll",
   "version": "1.0.0",
+  "name": "Villager Reroll",
   "environment": "client",
   "entrypoints": {
-    "client": ["com.tumod.villagerreroll.VillagerRerollClient"]
+    "client": [
+      "com.tumod.villagerreroll.VillagerRerollClient"
+    ]
   },
   "depends": {
-    "fabricloader": ">=0.15.0",
+    "fabricloader": ">=0.17.0",
     "minecraft": "1.21.9",
     "fabric-api": "*"
   }
