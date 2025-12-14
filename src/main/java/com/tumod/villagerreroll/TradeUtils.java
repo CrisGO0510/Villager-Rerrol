@@ -4,7 +4,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.enchantment.Enchantment;
-import net.minecraft.enchantment.Enchantments;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.entry.RegistryEntry;
@@ -14,8 +13,8 @@ import net.minecraft.village.TradeOfferList;
 
 public class TradeUtils {
 
-    // Verifica si hay Unbreaking III
-    public static boolean hasUnbreakingIII(TradeOfferList offers) {
+    // ESTE ES EL MÉTODO QUE FALTABA
+    public static boolean matchesTarget(TradeOfferList offers) {
         if (offers == null || offers.isEmpty()) return false;
 
         for (TradeOffer offer : offers) {
@@ -24,15 +23,18 @@ public class TradeUtils {
             if (enchants == null) continue;
 
             for (RegistryEntry<Enchantment> entry : enchants.getEnchantments()) {
-                if (entry.matchesKey(Enchantments.UNBREAKING) && enchants.getLevel(entry) == 3) {
-                    return true;
+                // Comparamos el ID del encantamiento con el configurado
+                if (entry.matchesId(VillagerRerollClient.targetEnchantment)) {
+                    // Verificamos si el nivel es IGUAL o MAYOR al deseado
+                    if (enchants.getLevel(entry) >= VillagerRerollClient.targetLevel) {
+                        return true;
+                    }
                 }
             }
         }
         return false;
     }
 
-    // Método auxiliar para obtener encantamientos de Libros o Items
     private static ItemEnchantmentsComponent getEnchantments(ItemStack stack) {
         ItemEnchantmentsComponent enchants = stack.get(DataComponentTypes.STORED_ENCHANTMENTS);
         if (enchants == null) {
@@ -41,20 +43,15 @@ public class TradeUtils {
         return enchants;
     }
 
-    // NUEVO: Imprime los trades encontrados en el chat
     public static void printTrades(MinecraftClient client, TradeOfferList offers) {
         if (offers.isEmpty()) return;
         
-        // Solo nos interesa el primer trade de libros (generalmente el primero o segundo slot)
         for (TradeOffer offer : offers) {
             ItemStack sell = offer.getSellItem();
-            
-            // Si es un libro encantado
             if (sell.isOf(Items.ENCHANTED_BOOK)) {
                 ItemEnchantmentsComponent enchants = getEnchantments(sell);
                 if (enchants != null) {
                     for (RegistryEntry<Enchantment> entry : enchants.getEnchantments()) {
-                        // Obtener nombre traducido (o key si no hay traducción cargada)
                         String name = entry.value().description().getString();
                         int level = enchants.getLevel(entry);
                         
