@@ -38,3 +38,11 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+
+# Logs generales
+*.log
+
+# Archivos de sistema Linux/Windows
+.DS_Store
+Thumbs.db
