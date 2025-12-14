@@ -91,7 +91,7 @@ Este mod envía paquetes de interacción automáticamente (es una macro).
 
 El mod incluye pequeños retrasos (delays) para lidiar con el lag del servidor, pero si el server va muy mal, podría fallar al poner el bloque (ghost blocks).
 
-🛠️ Solución de Problemas
+## 🛠️ Solución de Problemas
 
 El mod golpea el bloque pero no lo rompe:
 
